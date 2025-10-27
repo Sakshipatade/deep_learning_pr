@@ -1,0 +1,94 @@
+Step A: Import Required Libraries
+import tensorflow as tf
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import matplotlib.pyplot as plt
+
+📌 Step B: Load Pretrained CNN (Transfer Learning Base Model)
+# Load MobileNetV2 (pretrained on ImageNet), exclude top (classifier) layers
+base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+# Freeze all layers (so their weights don't change during training)
+for layer in base_model.layers:
+    layer.trainable = False
+
+base_model.summary()
+
+
+✔ Why freeze layers?
+Because we don’t want to retrain 2.3 million weights again, we only want to use the “knowledge” it already has.
+
+📌 Step C: Add Custom Classifier (Our Trainable Layers)
+# Build custom model on top of MobileNetV2
+x = base_model.output
+x = GlobalAveragePooling2D()(x)     # Convert 7x7x1280 → 1280
+x = Dense(256, activation='relu')(x) # Fully connected layer
+output = Dense(2, activation='softmax')(x)  # Final output layer (2 classes: Cat & Dog)
+
+model = Model(inputs=base_model.input, outputs=output)
+
+# Compile the model
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model.summary()
+
+📌 Step D: Load Dataset & Preprocess
+# Data preprocessing and augmentation
+train_datagen = ImageDataGenerator(rescale=1./255,
+                                   shear_range=0.2,
+                                   zoom_range=0.2,
+                                   horizontal_flip=True)
+
+test_datagen = ImageDataGenerator(rescale=1./255)
+
+train_data = train_datagen.flow_from_directory(
+    '/content/dataset/train',       # path to training data folder
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical'
+)
+
+test_data = test_datagen.flow_from_directory(
+    '/content/dataset/test',        # path to testing data folder
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical'
+)
+
+📌 Step E: Train Only the Custom Layers
+# Train only the top classifier layers
+history = model.fit(train_data, 
+                    validation_data=test_data, 
+                    epochs=5)
+
+📌 Step F: Fine-tuning (Optional)
+# Unfreeze the last 20 layers for fine tuning
+for layer in base_model.layers[-20:]:
+    layer.trainable = True
+
+model.compile(optimizer=tf.keras.optimizers.Adam(1e-5),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Train again (fine-tune)
+history_fine = model.fit(train_data, 
+                         validation_data=test_data, 
+                         epochs=3)
+
+📌 Step G: Plot Accuracy and Loss
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
+
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()

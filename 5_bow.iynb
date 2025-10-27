@@ -1,0 +1,106 @@
+Stage A: Data Preparation
+# ------------------ STEP 1: IMPORT REQUIRED LIBRARIES ------------------
+
+import numpy as np                       # For numeric operations
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Embedding, Lambda
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import skipgrams
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import tensorflow.keras.backend as K
+
+# ------------------ STEP 2: SAMPLE TEXT DATA ------------------
+
+sentences = [
+    "I love deep learning",
+    "Deep learning is amazing",
+    "I love machine learning",
+    "Machine learning is fun"
+]
+
+✅ Stage B: Generate Training Data for CBOW
+# ------------------ STEP 3: TEXT TO NUMERIC (TOKENIZATION) ------------------
+
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts(sentences)
+
+word_to_index = tokenizer.word_index   # Each word → unique index number
+index_to_word = {v:k for k,v in word_to_index.items()}
+vocab_size = len(word_to_index) + 1    # Total words
+
+print("Vocabulary:", word_to_index)
+
+# ------------------ STEP 4: CREATE CONTEXT-TARGET PAIRS ------------------
+
+window_size = 2  # words before & after target
+data = []
+
+for sentence in sentences:
+    words = sentence.split()
+    for index, target in enumerate(words):
+        context = []
+        for i in range(index - window_size, index + window_size + 1):
+            if i != index and 0 <= i < len(words):
+                context.append(words[i])
+        if len(context) > 0:
+            data.append((" ".join(context), target))  # (context words, target word)
+
+print("Context-Target pairs:", data)
+
+✅ Stage C: Converting Words to Training Vectors
+# ------------------ STEP 5: PREPARE TRAINING DATA FOR CBOW MODEL ------------------
+
+X = []
+Y = []
+
+for context, target in data:
+    context_words = [word_to_index[w] for w in context.split()]
+    target_word = word_to_index[target]
+    
+    X.append(context_words)
+    Y.append(target_word)
+
+X = pad_sequences(X, maxlen=window_size*2)  # Ensure equal input length
+Y = np.array(Y)
+
+print("Input (context):", X)
+print("Target words:", Y)
+
+✅ Stage D: Build the CBOW Model
+# ------------------ STEP 6: DEFINE MODEL ARCHITECTURE ------------------
+
+embedding_dim = 10  # Word vector size
+
+# Input is context words
+input_context = Input(shape=(window_size * 2,))  
+
+# Shared embedding layer
+embedding = Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=window_size * 2)(input_context)
+
+# Average the embeddings of context words
+context_mean = Lambda(lambda x: K.mean(x, axis=1))(embedding)
+
+# Output Layer → Predict target word
+output = Dense(vocab_size, activation='softmax')(context_mean)
+
+# Create model
+cbow_model = Model(inputs=input_context, outputs=output)
+cbow_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+cbow_model.summary()
+
+✅ Stage E: Train the CBOW Model
+# ------------------ STEP 7: TRAIN THE MODEL ------------------
+
+cbow_model.fit(X, Y, epochs=200, verbose=1)
+
+✅ Stage F: Output / Testing the Model
+# ------------------ STEP 8: CHECK WORD PREDICTION ------------------
+
+test_context = "I deep".split()   # Example context
+test_seq = pad_sequences([[word_to_index[w] for w in test_context]], maxlen=window_size*2)
+prediction = cbow_model.predict(test_seq)
+predicted_word = index_to_word[np.argmax(prediction)]
+
+print("Context Words:", test_context)
+print("Predicted Target Word:", predicted_word)
