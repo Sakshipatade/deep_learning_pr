@@ -1,0 +1,99 @@
+#We will use the Fashion-MNIST dataset (images of clothes like shirts, shoes, bags etc.).
+🔹 We will consider “Normal class = T-shirt/top” and ** treat other classes (like shoes, bags, jeans)** as anomalies.
+🔹 Autoencoder learns only the normal data → if reconstruction error is high → it is anomaly.
+
+
+# ------------------ Step A: Import Required Libraries ------------------
+
+import numpy as np                               # For numerical processing
+import matplotlib.pyplot as plt                  # For plotting graphs and images
+import tensorflow as tf                          # Deep learning framework
+from tensorflow.keras.datasets import fashion_mnist  # Fashion-MNIST dataset
+from tensorflow.keras.models import Model         # Base class for custom models
+from tensorflow.keras.layers import Input, Dense  # Input and fully connected layers
+from sklearn.metrics import confusion_matrix, classification_report
+
+# ------------------ Step B: Load and Preprocess the Dataset ------------------
+
+# Load dataset
+(x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
+
+# Normalize data (convert pixel values from 0-255 to 0-1)
+x_train = x_train / 255.0
+x_test = x_test / 255.0
+
+# Flatten images: 28x28 → 784 (because Dense layers accept 1D input)
+x_train = x_train.reshape((x_train.shape[0], 784))
+x_test  = x_test.reshape((x_test.shape[0], 784))
+
+# Only keep class 0 ("T-shirt/top") as NORMAL data for training the autoencoder
+x_train_normal = x_train[y_train == 0]
+x_test_normal  = x_test[y_test == 0]   # normal data
+x_test_anomaly = x_test[y_test != 0]   # anomaly data
+
+print("Training data shape:", x_train_normal.shape)
+print("Test NORMAL data shape:", x_test_normal.shape)
+print("Test ANOMALY data shape:", x_test_anomaly.shape)
+
+# ------------------ Step C: Build Encoder and Decoder (Autoencoder) ------------------
+
+input_layer = Input(shape=(784,))         # Input: 784 (flattened image)
+
+# Encoder: compress image to 32 features (latent space)
+encoded = Dense(128, activation='relu')(input_layer)
+encoded = Dense(64, activation='relu')(encoded)
+latent  = Dense(32, activation='relu', name="Latent_Space")(encoded)
+
+# Decoder: reconstruct the image back to original (784 values)
+decoded = Dense(64, activation='relu')(latent)
+decoded = Dense(128, activation='relu')(decoded)
+output_layer = Dense(784, activation='sigmoid')(decoded)  # sigmoid keeps output in [0,1] like images
+
+# Create Autoencoder Model
+autoencoder = Model(inputs=input_layer, outputs=output_layer)
+
+# ------------------ Step D: Compile the Model ------------------
+
+autoencoder.compile(optimizer='adam',
+                    loss='mse',           # MSE = Mean Squared Error = good for reconstruction
+                    metrics=['accuracy'])
+
+# ------------------ Step E: Train the Autoencoder (only on normal data) ------------------
+
+history = autoencoder.fit(x_train_normal, x_train_normal,
+                          epochs=20,
+                          batch_size=256,
+                          validation_data=(x_test_normal, x_test_normal))
+
+# ------------------ Step F: Calculate Reconstruction Error ------------------
+
+# Reconstruct test normal and anomaly data
+reconstructed_normal = autoencoder.predict(x_test_normal)
+reconstructed_anomaly = autoencoder.predict(x_test_anomaly)
+
+# Compute error = difference between original & reconstructed
+mse_normal = np.mean(np.power(x_test_normal - reconstructed_normal, 2), axis=1)
+mse_anomaly = np.mean(np.power(x_test_anomaly - reconstructed_anomaly, 2), axis=1)
+
+# Set a threshold for anomaly detection
+threshold = np.mean(mse_normal) + 3*np.std(mse_normal)
+print("Reconstruction Error Threshold:", threshold)
+
+# ------------------ Step G: Classify Based on Reconstruction Error ------------------
+
+# Normal if mse < threshold, Anomaly if mse > threshold
+normal_predictions = mse_normal < threshold
+anomaly_predictions = mse_anomaly > threshold
+
+print("Normal detected as normal:", np.sum(normal_predictions))
+print("Anomaly detected as anomaly:", np.sum(anomaly_predictions))
+
+# ------------------ Step H: Plot Training Loss ------------------
+
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Loss During Training')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
