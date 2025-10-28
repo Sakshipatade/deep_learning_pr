@@ -49,22 +49,25 @@ print("Context-Target pairs:", data)
 
 ✅ Stage C: Converting Words to Training Vectors
 # ------------------ STEP 5: PREPARE TRAINING DATA FOR CBOW MODEL ------------------
-
 X = []
 Y = []
 
 for context, target in data:
-    context_words = [word_to_index[w] for w in context.split()]
-    target_word = word_to_index[target]
+    # Convert both context and target to lowercase before lookup
+    context_words = [word_to_index[w.lower()] for w in context.split()]
+    target_word = word_to_index[target.lower()]
     
     X.append(context_words)
     Y.append(target_word)
 
-X = pad_sequences(X, maxlen=window_size*2)  # Ensure equal input length
+# Pad sequences for equal length input (CBOW expects fixed-size context)
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+X = pad_sequences(X, maxlen=window_size * 2)
 Y = np.array(Y)
 
 print("Input (context):", X)
 print("Target words:", Y)
+
 
 ✅ Stage D: Build the CBOW Model
 # ------------------ STEP 6: DEFINE MODEL ARCHITECTURE ------------------
