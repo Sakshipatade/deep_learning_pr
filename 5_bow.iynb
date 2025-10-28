@@ -100,7 +100,7 @@ cbow_model.fit(X, Y, epochs=200, verbose=1)
 ✅ Stage F: Output / Testing the Model
 # ------------------ STEP 8: CHECK WORD PREDICTION ------------------
 
-test_context = "I deep".split()   # Example context
+test_context = "I deep".lower().split()   # Convert to lowercase before splitting
 test_seq = pad_sequences([[word_to_index[w] for w in test_context]], maxlen=window_size*2)
 prediction = cbow_model.predict(test_seq)
 predicted_word = index_to_word[np.argmax(prediction)]
