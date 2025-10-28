@@ -1,5 +1,5 @@
 # ------------------------ Step 1: Import Necessary Libraries ------------------------
-
+!pip install tensorflow
 import tensorflow as tf                               # TensorFlow is the main deep learning framework
 from tensorflow.keras.datasets import mnist          # MNIST dataset (handwritten digits) is loaded from Keras
 from tensorflow.keras.models import Sequential       # Sequential model is used to stack layers
